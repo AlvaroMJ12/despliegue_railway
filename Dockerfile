@@ -1,34 +1,36 @@
-# 1. Usamos la imagen oficial de PHP 8.2 con Apache
 FROM php:8.2-apache
 
-# 2. FIX DE MPM: Deshabilitamos mpm_event y habilitamos mpm_prefork.
-# Esto soluciona el error "More than one MPM loaded" que aparecía en tus logs.
+# 1. FIX MPM: Esto es vital para que Apache no se líe con los procesos (lo que vimos en tus logs)
 RUN a2dismod mpm_event && a2enmod mpm_prefork
 
-# 3. CONFIGURACIÓN DEL PUERTO 8080:
-# Forzamos a Apache a escuchar en el puerto 8080 en todos sus archivos de configuración.
-RUN sed -i 's/Listen 80/Listen 8080/g' /etc/apache2/ports.conf
-RUN sed -i 's/<VirtualHost \*:80>/<VirtualHost *:8080>/g' /etc/apache2/sites-available/000-default.conf
+# 2. CONFIGURACIÓN PUERTO 8080:
+# Hacemos el cambio de puerto igual que el profesor, pero asegurando que se cambie en todos lados
+RUN sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
+RUN sed -i 's/<VirtualHost \*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-available/000-default.conf
 
-# 4. INSTALACIÓN DE EXTENSIONES:
-# Instalamos las librerías necesarias para que PHP pueda comunicarse con MySQL (PDO).
+# 3. INSTALACIÓN DE EXTENSIONES (MySQL):
 RUN apt-get update && apt-get install -y \
     libmariadb-dev \
     && docker-php-ext-install pdo pdo_mysql \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 5. MÓDULOS DE APACHE:
-# Habilitamos mod_rewrite, muy común para el manejo de rutas en aplicaciones PHP.
 RUN a2enmod rewrite
 
-# 6. COPIA DE ARCHIVOS:
-# Copiamos el contenido de tu carpeta local /src a la carpeta pública del servidor.
+# 4. COPIA DE ARCHIVOS
 COPY src/ /var/www/html/
-
-# 7. PERMISOS:
-# Aseguramos que el usuario de Apache (www-data) tenga permisos sobre los archivos.
 RUN chown -R www-data:www-data /var/www/html
 
-# 8. PUERTO:
-# Exponemos el puerto 8080 para que Railway sepa dónde buscar la aplicación.
+# 5. SCRIPT DE ARRANQUE (IGUAL QUE EL PROFESOR)
+# Creamos el archivo docker-entrypoint.sh dentro del contenedor
+RUN printf '#!/bin/bash\n\
+set -e\n\
+echo "Iniciando Apache en puerto 8080..."\n\
+exec apache2-foreground\n\
+' > /usr/local/bin/docker-entrypoint.sh
+
+# Le damos permisos de ejecución (chmod +x)
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# 6. CONFIGURACIÓN FINAL
 EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
