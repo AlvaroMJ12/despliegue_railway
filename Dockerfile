@@ -1,23 +1,21 @@
-# 1. Usamos la imagen oficial de PHP con Apache
 FROM php:8.2-apache
 
-# 2. FIX CRÍTICO: Deshabilitamos mpm_event y habilitamos mpm_prefork 
-# Esto elimina el error "More than one MPM loaded"
+# 1. FIX de MPM: Evitamos el error de "More than one MPM loaded"
 RUN a2dismod mpm_event && a2enmod mpm_prefork
 
-# 3. Instalamos las dependencias para MySQL
+# 2. CONFIGURACIÓN DE PUERTO 8080:
+# Forzamos a Apache a escuchar en el 8080 que has configurado en Railway
+RUN sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
+RUN sed -i 's/<VirtualHost \*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-available/000-default.conf
+
+# 3. Extensiones para MySQL
 RUN apt-get update && apt-get install -y \
     libmariadb-dev \
     && docker-php-ext-install pdo pdo_mysql
 
-# 4. Habilitamos el módulo rewrite
 RUN a2enmod rewrite
-
-# 5. Copiamos tu código fuente
 COPY src/ /var/www/html/
-
-# 6. Ajustamos permisos para el servidor
 RUN chown -R www-data:www-data /var/www/html
 
-# Railway detectará el puerto automáticamente, pero dejamos el 80 por defecto
-EXPOSE 80
+# Exponemos el 8080 para que Railway sepa dónde mirar
+EXPOSE 8080
