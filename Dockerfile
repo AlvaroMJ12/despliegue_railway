@@ -1,10 +1,9 @@
 FROM php:8.2-apache
 
-# 1. FIX ULTRA-AGRESIVO PARA EL ERROR MPM
-# En vez de desactivarlo, borramos físicamente los enlaces simbólicos de 'event'.
-# Esto elimina el error "More than one MPM loaded" de raíz.
-RUN rm -f /etc/apache2/mods-enabled/mpm_event.conf \
-    && rm -f /etc/apache2/mods-enabled/mpm_event.load \
+# 1. FIX DEFINITIVO (NUCLEAR): Limpieza total de MPMs
+# Usamos un wildcard (*) para borrar cualquier rastro de mpm_event, mpm_worker, etc.
+# Esto garantiza que la carpeta quede limpia antes de activar prefork.
+RUN rm -f /etc/apache2/mods-enabled/mpm_* \
     && a2enmod mpm_prefork
 
 # 2. INSTALACIÓN DE MYSQL
@@ -16,10 +15,9 @@ RUN apt-get update && apt-get install -y \
 RUN a2enmod rewrite
 
 # 3. CONFIGURACIÓN DEL PUERTO 8080
-# Sobrescribimos los archivos para obligar al uso del puerto 8080.
+# Sobrescribimos la configuración para forzar el puerto 8080
 RUN echo "Listen 8080" > /etc/apache2/ports.conf
 
-# Creamos el VirtualHost manualmente para el 8080
 RUN echo "<VirtualHost *:8080>\n\
     ServerAdmin webmaster@localhost\n\
     DocumentRoot /var/www/html\n\
