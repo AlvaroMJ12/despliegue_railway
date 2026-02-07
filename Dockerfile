@@ -1,12 +1,6 @@
 FROM php:8.2-apache
 
-# 1. FIX DEFINITIVO (NUCLEAR): Limpieza total de MPMs
-# Usamos un wildcard (*) para borrar cualquier rastro de mpm_event, mpm_worker, etc.
-# Esto garantiza que la carpeta quede limpia antes de activar prefork.
-RUN rm -f /etc/apache2/mods-enabled/mpm_* \
-    && a2enmod mpm_prefork
-
-# 2. INSTALACIÓN DE MYSQL
+# 1. INSTALACIÓN DE DEPENDENCIAS (Hacemos esto primero)
 RUN apt-get update && apt-get install -y \
     libmariadb-dev \
     && docker-php-ext-install pdo pdo_mysql \
@@ -14,20 +8,21 @@ RUN apt-get update && apt-get install -y \
 
 RUN a2enmod rewrite
 
-# 3. CONFIGURACIÓN DEL PUERTO 8080
-# Sobrescribimos la configuración para forzar el puerto 8080
-RUN echo "Listen 8080" > /etc/apache2/ports.conf
+# 2. CONFIGURACIÓN DEL PUERTO 8080
+# Usamos 'sed' para cambiar todos los 80 por 8080 de golpe.
+RUN sed -i 's/80/8080/g' /etc/apache2/ports.conf /etc/apache2/sites-available/000-default.conf
 
-RUN echo "<VirtualHost *:8080>\n\
-    ServerAdmin webmaster@localhost\n\
-    DocumentRoot /var/www/html\n\
-    ErrorLog \${APACHE_LOG_DIR}/error.log\n\
-    CustomLog \${APACHE_LOG_DIR}/access.log combined\n\
-</VirtualHost>" > /etc/apache2/sites-available/000-default.conf
-
-# 4. COPIA DE ARCHIVOS
+# 3. COPIA DE ARCHIVOS
 COPY src/ /var/www/html/
 RUN chown -R www-data:www-data /var/www/html
+
+# 4. FIX DE MPM (LO HACEMOS AL FINAL PARA QUE NADIE LO SOBRESCRIBA)
+# Borramos manualmente cualquier rastro de event o worker y forzamos prefork.
+RUN rm -f /etc/apache2/mods-enabled/mpm_event.load \
+    && rm -f /etc/apache2/mods-enabled/mpm_event.conf \
+    && rm -f /etc/apache2/mods-enabled/mpm_worker.load \
+    && rm -f /etc/apache2/mods-enabled/mpm_worker.conf \
+    && a2enmod mpm_prefork
 
 # 5. ARRANQUE
 EXPOSE 8080
